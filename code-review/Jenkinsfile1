@@ -1,0 +1,60 @@
+def call() {
+        pipeline { 
+            agent any 
+            
+            parameters {
+                string(name: 'branch', defaultValue: 'refs/heads/develop', description: 'git branch where fetch sourcecode')
+            }
+            
+            environment {
+                GIT_URL = getGitRepoURL()
+                GIT_CREDENTIALS = '*******'
+            }
+            
+            tools {
+                nodejs "node"
+            }
+            
+            triggers {
+                cron('H 06 * * 1-5')
+            }
+            
+            stages {
+                stage ('Initialize'){
+                    steps { 
+                        echo 'initializing'
+                        deleteDir()
+                        bat '''
+                            echo "PATH = %PATH%"
+                            echo "M2_HOME = %M2_HOME%"
+                        ''' 
+                    }
+                }
+    
+                stage ('Sourcecode'){
+                    steps { 
+                        echo 'fetching sourcecode from ' + env.GIT_URL
+                        checkout([$class: 'GitSCM', branches: [[name: params.branch]], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: env.GIT_CREDENTIALS, url: env.GIT_URL]]])            
+                    }
+                }
+                
+                stage ('Execute raml2html'){
+                    steps {
+                        sh 'cd ..\HelpDevelopsAPI
+                        node raml2html -s %WORKSPACE% -c %WORKSPACE%\..\apidef-aqj-commons -o /server/api --cat .*.html --schema /server/schema/%JOB_BASE_NAME% --mock /server/mock/%JOB_BASE_NAME%
+                        cd %WORKSPACE%'
+                    }
+                }
+            }
+        }
+    }
+        
+    def getGitRepoURL() {
+        String projectName = env.JOB_BASE_NAME
+        print 'projectName '+projectName  +'\n'
+        String[] projectParts = projectName.tokenize( '-' )
+        String bian = projectParts[1]
+        String name = projectParts[0]+'-'+projectParts[1]+'-'+projectParts[2]
+        echo 'exampleurl'+bian+'/'+name+'.git'
+        return 'exapleurl'+bian+'/'+name+'.git'
+    }
